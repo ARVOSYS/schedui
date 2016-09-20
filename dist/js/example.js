@@ -101,6 +101,7 @@ var Calendar = {
         SchedUI.Options.Events.ItemMovement = Calendar.Item_Movement;
         SchedUI.Options.Events.ItemMovementStart = Calendar.Item_MovementStart;
         SchedUI.Options.Events.ItemMovementEnd = Calendar.Item_MovementEnd;
+        SchedUI.Options.AppendWeekDaysClasses = true;
         SchedUI.Options.Text.NextButton = '&nbsp;';
         SchedUI.Options.Text.PrevButton = '&nbsp;';
         SchedUI.Options.MaxHeight = 100;

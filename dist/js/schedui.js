@@ -117,7 +117,8 @@ var SchedUI = {
         // Disable items on moving?
         DisableOnMove: true,
         // A given max height for the calendar, if unspecified, will expand forever
-        MaxHeight: null
+        MaxHeight: null,
+        AppendWeekDaysClasses: true
     },
     Wrapper: null,
     HeaderWrap: null,
@@ -173,11 +174,16 @@ var SchedUI = {
             }
         };
     },
+    Override: null,
     /* Initializes the Timeline Scheduler with the given opts. If omitted, defaults are used. */
     /* This should be used to recreate the scheduler with new defaults or refill items */
     Init: function (overrideCache) {
+        SchedUI.Override = overrideCache || SchedUI.Override;
+        var hashObj = SchedUI.GetUrlHash();
         SchedUI.SetupPrototypes();
-        SchedUI.Options.Start = moment(SchedUI.Options.Start);
+        //SchedUI.Options.Start = moment(SchedUI.Options.Start);
+        SchedUI.Options.Start = moment(hashObj["start"] || SchedUI.Options.Start || moment().startOf('day'));
+        SchedUI.Options.SelectedPeriod = hashObj["period"] || SchedUI.Options.SelectedPeriod;
         SchedUI.Options.Element.find('.ui-draggable').draggable('destroy');
         SchedUI.Options.Element.empty();
         SchedUI.Wrapper = $(document.createElement('div'))
@@ -191,6 +197,43 @@ var SchedUI = {
             .appendTo(SchedUI.Wrapper);
         SchedUI.CreateCalendar();
         SchedUI.FillSections(overrideCache);
+    },
+    Reload: function (overrideCache) {
+        if (typeof SchedUI.Options.GetSections === "function") {
+            SchedUI.Init(overrideCache);
+            SchedUI.Options.GetSections(function (sections) {
+                SchedUI.CachedSectionResult = sections;
+                // SchedUI.FillSections_Callback(sections);
+                // $(".time-sch-section-row, .time-sch-section-container").remove();
+                SchedUI.Init(overrideCache);
+            });
+        }
+        else {
+            SchedUI.Init(overrideCache);
+        }
+    },
+    SetUrlHash: function (key, value) {
+        var hashArr = [];
+        var hashObj = SchedUI.GetUrlHash();
+        hashObj[decodeURIComponent(key)] = decodeURIComponent(value);
+        for (var prop in hashObj) {
+            if (hashObj.hasOwnProperty(prop)) {
+                hashArr.push(encodeURIComponent(prop) + "=" + encodeURIComponent(hashObj[prop]));
+            }
+        }
+        window.location.hash = "#" + hashArr.join("&");
+    },
+    GetUrlHash: function () {
+        var hash = window.location.hash;
+        var hashObj = {};
+        hash = hash.replace("#", "");
+        if (hash.length > 0) {
+            hash.split("&").forEach(function (d) {
+                var pair = d.split("=");
+                hashObj[decodeURIComponent(pair[0])] = decodeURIComponent(pair[1]);
+            });
+        }
+        return hashObj;
     },
     GetSelectedPeriod: function () {
         var period;
@@ -298,6 +341,7 @@ var SchedUI = {
                 .appendTo(tr);
             for (var i = 0; i < splits; i++) {
                 thisTime = moment(SchedUI.Options.Start)["tsAdd"]('minutes', (i * period.TimeframePeriod));
+                // console.log(thisTime.day());
                 fThisTime = thisTime.format(header);
                 if (fPrevDate !== fThisTime) {
                     // If there is no prevDate, it's the Section Header
@@ -321,6 +365,13 @@ var SchedUI = {
                         .addClass('time-sch-header-' + headerCount + '-date-end')
                         .addClass('time-sch-header-' + headerCount + '-date-column-' + currentTimeIndex)
                         .addClass('time-sch-header-' + headerCount + '-date-' + ((currentTimeIndex % 2 === 0) ? 'even' : 'odd'));
+                    if (SchedUI.Options.AppendWeekDaysClasses) {
+                        if (period.TimeframePeriod <= 1440) {
+                            if (headerCount > 0) {
+                                td.addClass('week-day-' + thisTime.day());
+                            }
+                        }
+                    }
                     for (var prevHeader = 0; prevHeader < headerCount; prevHeader++) {
                         SchedUI.AddHeaderClasses(td, i, prevHeader);
                     }
@@ -367,6 +418,16 @@ var SchedUI = {
                 row: tr,
                 container: sectionContainer
             };
+            // Fill in weekends
+            if (SchedUI.Options.AppendWeekDaysClasses) {
+                $(".time-sch-content-header-wrap > table tr.time-sch-times-header-1 > td").each(function (i, d) {
+                    var tdClass = $(d).attr("class");
+                    var weekDayIndx = tdClass.indexOf("week-day-");
+                    if (weekDayIndx !== -1) {
+                        $(".time-sch-content-wrap > table tr > td:nth-child(" + (i + 1) + ")").addClass(tdClass.substring(weekDayIndx, weekDayIndx + 10));
+                    }
+                });
+            }
         }
         SchedUI.SectionWrap.css({
             left: SchedUI.Options.Element.find('.time-sch-section').outerWidth()
@@ -744,6 +805,11 @@ var SchedUI = {
     FillSchedule_Callback: function (obj) {
         SchedUI.CachedScheduleResult = obj;
         SchedUI.CreateItems(obj);
+        // Fix rows height
+        $(".time-sch-content-wrap > table > tbody > tr").each(function (i, d) {
+            $("div.time-sch-section-wrapper > div.time-sch-section-container:nth-child(" + (i + 1) + ")").attr("style", "height:" + $(d).height() + "px;");
+        });
+        // Fix rows height
     },
     FillHeader: function () {
         var durationString, title, periodContainer, timeContainer, periodButton, timeButton;
@@ -830,7 +896,13 @@ var SchedUI = {
             },
             onSelect: function (date) {
                 SchedUI.Options.Start = moment(date);
-                SchedUI.Init(null);
+                SchedUI.SetUrlHash("start", SchedUI.Options.Start.toISOString());
+                if (typeof SchedUI.Options.GetSections === "function") {
+                    SchedUI.Reload(SchedUI.Override);
+                }
+                else {
+                    SchedUI.Init(SchedUI.Override);
+                }
             },
             defaultDate: SchedUI.Options.Start.toDate()
         })
@@ -850,12 +922,24 @@ var SchedUI = {
         else if ($(this).is('.time-sch-time-button-next')) {
             SchedUI.Options.Start["tsAdd"]('minutes', period.TimeframeOverall);
         }
-        SchedUI.Init(null);
+        SchedUI.SetUrlHash("start", SchedUI.Options.Start.toISOString());
+        if (typeof SchedUI.Options.GetSections === "function") {
+            SchedUI.Reload(SchedUI.Override);
+        }
+        else {
+            SchedUI.Init(SchedUI.Override);
+        }
     },
     /* Selects the period with the given name */
     SelectPeriod: function (name) {
         SchedUI.Options.SelectedPeriod = name;
-        SchedUI.Init(null);
+        SchedUI.SetUrlHash("period", SchedUI.Options.SelectedPeriod);
+        if (typeof SchedUI.Options.GetSections === "function") {
+            SchedUI.Reload(SchedUI.Override);
+        }
+        else {
+            SchedUI.Init(SchedUI.Override);
+        }
     },
     Period_Clicked: function (event) {
         event.preventDefault();

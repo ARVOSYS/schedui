@@ -1,6 +1,6 @@
 {
   "name": "schedui",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Sched UI - lite event schedule visualization UI library",
   "main": "index.js",
   "scripts": {

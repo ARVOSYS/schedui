@@ -60,3 +60,6 @@
     background-image: url(images/arrow_left.png); }
   .time-sch-button.time-sch-time-button-goto, .time-sch-button.time-sch-time-button-today {
     border-radius: 4px; }
+
+.week-day-6, .week-day-0 {
+  background-color: #b6d2f0 !important; }
